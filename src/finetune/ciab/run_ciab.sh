@@ -72,7 +72,8 @@ do
   long_test_data=./data/datafiles/ciab_long_test_data_${fold}.json
 
   CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
-  --data-train ${tr_data} --data-val ${te_data} --data-eval ${tt_data}--exp-dir $exp_dir \
+  --data-train ${tr_data} --data-val ${validation_data} --data-standard-test ${standard_test_data} \
+  --data-matched-test ${matched_test_data} --data-long-test ${long_test_data} --exp-dir $exp_dir \
   --label-csv ./data/esc_class_labels_indices.csv --n_class 50 \
   --lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model False \
   --freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \
