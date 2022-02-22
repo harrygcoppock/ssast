@@ -8,10 +8,18 @@ import json
 import os
 import zipfile
 import wget
+from sklearn.model_selection import KFold
 
+import pandas as pd
+import subprocess, glob, csv
+from tqdm import tqdm
+import pickle
+from botocore import UNSIGNED
+from botocore.config import Config
+import io
+import boto3
 
-
-class ExtractOpensmile():
+class PrepCIAB():
     POSSIBLE_MODALITIES = ['audio_sentence_url',
                            'audio_ha_sound_url',
                            'audio_cough_url',
@@ -26,6 +34,7 @@ class ExtractOpensmile():
             'matched': 'audio_sentences_for_matching/test_set_matched_audio_sentences_v6_final.csv',
             'matched_train': 'audio_sentences_for_matching/train_set_matched_audio_sentences_v6_final.csv'
             }
+    RANDOM_SEED = 42
 
     def __init__(self, modality='audio_three_cough_url'):
         self.modality = self.check_modality(modality)
@@ -34,6 +43,7 @@ class ExtractOpensmile():
         self.meta_data, self.train, self.test, self.long_test, self.matched_test, self.matched_train = self.load_train_test_splits()
         # base directory for audio files
         self.output_base= f'./data/ciab/{self.modality}'
+        self.create_folds()
 
     def main(self):
         os.makedirs(self.output_base)
@@ -47,6 +57,8 @@ class ExtractOpensmile():
         self.iterate_through_files(self.matched_test, 'matched_test') 
         print('Begining opensmile matched train feature extraction')
         self.iterate_through_files(self.matched_train, 'matched_train')
+        print('creating json')
+        self.create_json()
 
     def check_modality(self, modality):
         if modality not in self.POSSIBLE_MODALITIES:
@@ -131,47 +143,63 @@ class ExtractOpensmile():
 
     def print_stats(self):
         print(f'Sample numbers: Train: {len(self.train)}, Test: {len(self.test)}, Long_test: {len(self.long_test)} matched_test: {len(self.matched_test)}')
+    def create_folds(self):
+        kfold = KFold(n_splits=5, shuffle=True, random_state=self.RANDOM_SEED)
+        self.folds = [[self.train[idx] for idx in test]
+                 for (train, test) in kfold.split(self.train)]
 
+    def create_json(self):
+        for fold in [1,2,3,4,5]:
+            train_list = [instance for instance in self.train if instance in self.fold[fold-1]]
+            validation_list = [instance for instance in self.train if instance not in self.fold[fold-1]]
+            
+        with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': train_list}, f, indent=1)
 
-def get_immediate_subdirectories(a_dir):
-    return [name for name in os.listdir(a_dir) if os.path.isdir(os.path.join(a_dir, name))]
+        with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': eval_list}, f, indent=1)
+        with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.test}, f, indent=1)
+        with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.matched_test}, f, indent=1)
+        with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.long_test}, f, indent=1)
 
-def get_immediate_files(a_dir):
-    return [name for name in os.listdir(a_dir) if os.path.isfile(os.path.join(a_dir, name))]
+if __name__ == '__main__':
+    ciab = PrepCIAB()
 
-
-label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
-label_map = {}
-for i in range(1, len(label_set)):
-    label_map[eval(label_set[i][2])] = label_set[i][0]
-print(label_map)
-
-# fix bug: generate an empty directory to save json files
-if os.path.exists('./data/datafiles') == False:
-    os.mkdir('./data/datafiles')
-
-for fold in [1,2,3,4,5]:
-    base_path = os.path.abspath(os.getcwd()) + "/data/ESC-50-master/audio_16k/"
-    meta = np.loadtxt('./data/ESC-50-master/meta/esc50.csv', delimiter=',', dtype='str', skiprows=1)
-    train_wav_list = []
-    eval_wav_list = []
-    for i in range(0, len(meta)):
-        cur_label = label_map[meta[i][3]]
-        cur_path = meta[i][0]
-        cur_fold = int(meta[i][1])
-        # /m/07rwj is just a dummy prefix
-        cur_dict = {"wav": base_path + cur_path, "labels": '/m/07rwj'+cur_label.zfill(2)}
-        if cur_fold == fold:
-            eval_wav_list.append(cur_dict)
-        else:
-            train_wav_list.append(cur_dict)
-
-    print('fold {:d}: {:d} training samples, {:d} test samples'.format(fold, len(train_wav_list), len(eval_wav_list)))
-
-    with open('./data/datafiles/esc_train_data_'+ str(fold) +'.json', 'w') as f:
-        json.dump({'data': train_wav_list}, f, indent=1)
-
-    with open('./data/datafiles/esc_eval_data_'+ str(fold) +'.json', 'w') as f:
-        json.dump({'data': eval_wav_list}, f, indent=1)
-
-print('Finished ESC-50 Preparation')
+#label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
+#label_map = {}
+#for i in range(1, len(label_set)):
+#    label_map[eval(label_set[i][2])] = label_set[i][0]
+#print(label_map)
+#
+## fix bug: generate an empty directory to save json files
+#if os.path.exists('./data/datafiles') == False:
+#    os.mkdir('./data/datafiles')
+#
+#for fold in [1,2,3,4,5]:
+#    base_path = os.path.abspath(os.getcwd()) + "/data/ESC-50-master/audio_16k/"
+#    meta = np.loadtxt('./data/ESC-50-master/meta/esc50.csv', delimiter=',', dtype='str', skiprows=1)
+#    train_wav_list = []
+#    eval_wav_list = []
+#    for i in range(0, len(meta)):
+#        cur_label = label_map[meta[i][3]]
+#        cur_path = meta[i][0]
+#        cur_fold = int(meta[i][1])
+#        # /m/07rwj is just a dummy prefix
+#        cur_dict = {"wav": base_path + cur_path, "labels": '/m/07rwj'+cur_label.zfill(2)}
+#        if cur_fold == fold:
+#            eval_wav_list.append(cur_dict)
+#        else:
+#            train_wav_list.append(cur_dict)
+#
+#    print('fold {:d}: {:d} training samples, {:d} test samples'.format(fold, len(train_wav_list), len(eval_wav_list)))
+#
+#    with open('./data/datafiles/esc_train_data_'+ str(fold) +'.json', 'w') as f:
+#        json.dump({'data': train_wav_list}, f, indent=1)
+#
+#    with open('./data/datafiles/esc_eval_data_'+ str(fold) +'.json', 'w') as f:
+#        json.dump({'data': eval_wav_list}, f, indent=1)
+#
+#print('Finished ESC-50 Preparation')

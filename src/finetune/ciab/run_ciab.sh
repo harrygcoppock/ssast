@@ -65,8 +65,11 @@ do
 
   exp_dir=${base_exp_dir}/fold${fold}
 
-  tr_data=./data/datafiles/esc_train_data_${fold}.json
-  te_data=./data/datafiles/esc_eval_data_${fold}.json
+  train_data=./data/datafiles/ciab_train_data_${fold}.json
+  validation_data=./data/datafiles/ciab_validation_data_${fold}.json
+  standard_test_data=./data/datafiles/ciab_standard_test_data_${fold}.json
+  matched_test_data=./data/datafiles/ciab_matched_test_data_${fold}.json
+  long_test_data=./data/datafiles/ciab_long_test_data_${fold}.json
 
   CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
   --data-train ${tr_data} --data-val ${te_data} --data-eval ${tt_data}--exp-dir $exp_dir \
