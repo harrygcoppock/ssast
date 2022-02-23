@@ -16,3 +16,5 @@ src/models/ast_model_uni.py
 src/finetune/superb/s3prl-master/*
 .idea/*
 venvssast/*
+src/finetune/ciab/data/datafiles/*
+src/finetune/ciab/figs/*

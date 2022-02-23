@@ -18,6 +18,9 @@ from botocore import UNSIGNED
 from botocore.config import Config
 import io
 import boto3
+import librosa, librosa.display
+import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
 
 class PrepCIAB():
     POSSIBLE_MODALITIES = ['audio_sentence_url',
@@ -46,19 +49,21 @@ class PrepCIAB():
         self.create_folds()
 
     def main(self):
-        os.makedirs(self.output_base)
-        print('Begining opensmile train feature extraction')
-        self.iterate_through_files(self.train, 'train')
-        print('Begining opensmile test feature extraction')
-        self.iterate_through_files(self.test, 'test')
-        print('Begining opensmile longitudinal test feature extraction')
-        self.iterate_through_files(self.long_test, 'long_test') 
-        print('Begining opensmile matched test feature extraction')
-        self.iterate_through_files(self.matched_test, 'matched_test') 
-        print('Begining opensmile matched train feature extraction')
-        self.iterate_through_files(self.matched_train, 'matched_train')
+        if not os.path.exists(self.output_base):
+            os.makedirs(self.output_base)
+            
         print('creating json')
         self.create_json()
+        print('Beginining ciab train prepocessing')
+        self.iterate_through_files(self.train, 'train')
+        print('Beginining ciab test prepocessing')
+        self.iterate_through_files(self.test, 'test')
+        print('Beginining ciab long test prepocessing')
+        self.iterate_through_files(self.long_test, 'long_test') 
+        print('Beginining ciab matched test prepocessing')
+        self.iterate_through_files(self.matched_test, 'matched_test') 
+        print('Beginining ciab matched_train prepocessing')
+        self.iterate_through_files(self.matched_train, 'matched_train')
 
     def check_modality(self, modality):
         if modality not in self.POSSIBLE_MODALITIES:
@@ -108,27 +113,37 @@ class PrepCIAB():
 
 
     def iterate_through_files(self, dataset, split='train'):
-        error_list = []
-        for i, barcode_id in enumerate(tqdm(dataset)):
-            df_match = self.meta_data[self.meta_data['audio_sentence'] == barcode_id]
-            assert len(df_match) != 0, 'This unique code does not exist in the meta data file currently loaded - investigate!'
-            try:
-                filename = self.get_file(df_match[self.modality].iloc[0], self.bucket_audio)
-            except:
-                print(f"{df_match[self.modality].iloc[0]} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
-                error_list.append(df_match[self.modality].iloc[0])
-                continue
-            label = df_match['test_result'].iloc[0]
-            try:
-                print('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
-                os.system('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
-            except RuntimeError:
-                print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
-                error_list.append(filename)
-                continue
+        self.error_list = []
+        self.tot_removed = 0
+        bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id) for barcode_id in dataset)
         
-        with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
-            output.write(str(error_list))
+        print(f'Average fraction removed: {mean(self.tot_removed)}')
+
+    def process_file(self, barcode_id):
+       # for i, barcode_id in enumerate(tqdm(dataset)):
+        df_match = self.meta_data[self.meta_data['audio_sentence'] == barcode_id]
+        assert len(df_match) != 0, 'This unique code does not exist in the meta data file currently loaded - investigate!'
+        try:
+            filename = self.get_file(df_match[self.modality].iloc[0], self.bucket_audio)
+        except:
+            print(f"{df_match[self.modality].iloc[0]} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
+            self.error_list.append(df_match[self.modality].iloc[0])
+            return 1
+        label = df_match['test_result'].iloc[0]
+        try:
+            signal, sr = librosa.load(filename, sr=16000)
+            clipped_signal, frac_removed = self.remove_silence(signal, barcode_id)
+            self.tot_removed += frac_removed
+            #print('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
+            #os.system('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
+        except RuntimeError:
+            print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
+            self.error_list.append(filename)
+            return 1
+        return 1
+        
+        #with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
+        #    output.write(str(error_list))
 
 
     def create_long_test(self, meta, train_test):
@@ -143,6 +158,7 @@ class PrepCIAB():
 
     def print_stats(self):
         print(f'Sample numbers: Train: {len(self.train)}, Test: {len(self.test)}, Long_test: {len(self.long_test)} matched_test: {len(self.matched_test)}')
+    
     def create_folds(self):
         kfold = KFold(n_splits=5, shuffle=True, random_state=self.RANDOM_SEED)
         self.folds = [[self.train[idx] for idx in test]
@@ -150,24 +166,52 @@ class PrepCIAB():
 
     def create_json(self):
         for fold in [1,2,3,4,5]:
-            train_list = [instance for instance in self.train if instance in self.fold[fold-1]]
-            validation_list = [instance for instance in self.train if instance not in self.fold[fold-1]]
+            train_list = [instance for instance in self.train if instance in self.folds[fold-1]]
+            validation_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
             
-        with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': train_list}, f, indent=1)
+            with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
+                json.dump({'data': train_list}, f, indent=1)
 
-        with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': eval_list}, f, indent=1)
-        with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': self.test}, f, indent=1)
-        with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': self.matched_test}, f, indent=1)
-        with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': self.long_test}, f, indent=1)
+            with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
+                json.dump({'data': validation_list}, f, indent=1)
+            with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
+                json.dump({'data': self.test}, f, indent=1)
+            with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
+                json.dump({'data': self.matched_test}, f, indent=1)
+            with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
+                json.dump({'data': self.long_test}, f, indent=1)
 
+    def remove_silence(self, signal, filename):
+        '''
+        Removes the silent proportions of the signal, concatenating the remaining clips
+        '''
+        length_prior = len(signal)
+        clips = librosa.effects.split(signal, top_db=5)
+
+        clipped_signal = []
+        for clip in clips:
+            data = signal[clip[0]:clip[1]]
+            clipped_signal.extend(data)
+        length_post = len(clipped_signal)
+
+        #self.plot_b_a(signal, np.array(clipped_signal), filename)
+
+        return np.array(clipped_signal), (length_prior - length_post)/length_prior
+
+    def plot_b_a(self, before, after, filename):
+        '''
+        plot the waveform before and after the silence is removed
+        '''
+        fig, ax = plt.subplots(nrows=2)
+        librosa.display.waveshow(before, sr=16000, ax=ax[0])
+        librosa.display.waveshow(after, sr=16000, ax=ax[1])
+        ax[0].set(title='HOw much we remove')
+        ax[0].label_outer()
+        plt.savefig(f'figs/{filename}.png')
+        plt.close()
 if __name__ == '__main__':
     ciab = PrepCIAB()
-
+    ciab.main()
 #label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
 #label_map = {}
 #for i in range(1, len(label_set)):
