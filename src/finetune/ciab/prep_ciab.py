@@ -190,7 +190,7 @@ class PrepCIAB():
         Removes the silent proportions of the signal, concatenating the remaining clips
         '''
         length_prior = len(signal)
-        clips = librosa.effects.split(signal, top_db=50)
+        clips = librosa.effects.split(signal, top_db=60)
 
         clipped_signal = []
         for clip in clips:
