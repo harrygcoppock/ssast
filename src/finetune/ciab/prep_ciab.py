@@ -21,6 +21,7 @@ import boto3
 import librosa, librosa.display
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
+import soundfile as sf
 
 class PrepCIAB():
     POSSIBLE_MODALITIES = ['audio_sentence_url',
@@ -113,14 +114,16 @@ class PrepCIAB():
 
 
     def iterate_through_files(self, dataset, split='train'):
+        if not os.path.exists(f'{self.output_base}/audio_16k/{split}'):
+            os.makedirs(f'{self.output_base}/audio_16k/{split}')
         self.error_list = []
         self.tot_removed = 0
-        bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id) for barcode_id in dataset)
+        bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id, split) for barcode_id in dataset)
         
         print(f'Average fraction removed: {mean(self.tot_removed)}')
 
-    def process_file(self, barcode_id):
-       # for i, barcode_id in enumerate(tqdm(dataset)):
+    def process_file(self, barcode_id, split):
+
         df_match = self.meta_data[self.meta_data['audio_sentence'] == barcode_id]
         assert len(df_match) != 0, 'This unique code does not exist in the meta data file currently loaded - investigate!'
         try:
@@ -132,14 +135,15 @@ class PrepCIAB():
         label = df_match['test_result'].iloc[0]
         try:
             signal, sr = librosa.load(filename, sr=16000)
-            clipped_signal, frac_removed = self.remove_silence(signal, barcode_id)
-            self.tot_removed += frac_removed
             #print('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
             #os.system('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
         except RuntimeError:
             print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
             self.error_list.append(filename)
             return 1
+        clipped_signal, frac_removed = self.remove_silence(signal, barcode_id)
+        self.tot_removed += frac_removed
+        sf.write(f'{self.output_base}/audio_16k/{split}/{barcode_id}', clipped_signal, 16000)
         return 1
         
         #with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
@@ -186,15 +190,18 @@ class PrepCIAB():
         Removes the silent proportions of the signal, concatenating the remaining clips
         '''
         length_prior = len(signal)
-        clips = librosa.effects.split(signal, top_db=5)
+        clips = librosa.effects.split(signal, top_db=50)
 
         clipped_signal = []
         for clip in clips:
             data = signal[clip[0]:clip[1]]
             clipped_signal.extend(data)
         length_post = len(clipped_signal)
+        
+        random_number = np.random.uniform(0,1,1)
+        if random_number[0] < 0.1:
 
-        #self.plot_b_a(signal, np.array(clipped_signal), filename)
+            self.plot_b_a(signal, np.array(clipped_signal), filename)
 
         return np.array(clipped_signal), (length_prior - length_post)/length_prior
 
@@ -206,7 +213,6 @@ class PrepCIAB():
         librosa.display.waveshow(before, sr=16000, ax=ax[0])
         librosa.display.waveshow(after, sr=16000, ax=ax[1])
         ax[0].set(title='HOw much we remove')
-        ax[0].label_outer()
         plt.savefig(f'figs/{filename}.png')
         plt.close()
 if __name__ == '__main__':
