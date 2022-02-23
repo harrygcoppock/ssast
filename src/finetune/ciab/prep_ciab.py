@@ -121,6 +121,9 @@ class PrepCIAB():
         bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id, split) for barcode_id in dataset)
         
         print(f'Average fraction removed: {mean(self.tot_removed)}')
+        
+        with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
+            output.write(str(self.error_list))
 
     def process_file(self, barcode_id, split):
 
@@ -135,8 +138,6 @@ class PrepCIAB():
         label = df_match['test_result'].iloc[0]
         try:
             signal, sr = librosa.load(filename, sr=16000)
-            #print('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
-            #os.system('sox ' + filename + ' -r 16000 ' + self.output_base + '/audio_16k/'+ f"/{split}/" + barcode_id)
         except RuntimeError:
             print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
             self.error_list.append(filename)
@@ -146,8 +147,6 @@ class PrepCIAB():
         sf.write(f'{self.output_base}/audio_16k/{split}/{barcode_id}', clipped_signal, 16000)
         return 1
         
-        #with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
-        #    output.write(str(error_list))
 
 
     def create_long_test(self, meta, train_test):
@@ -174,16 +173,40 @@ class PrepCIAB():
             validation_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
             
             with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': train_list}, f, indent=1)
+                json.dump({'data': self.list_to_dict(train_list, 'train')}, f, indent=1)
 
             with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': validation_list}, f, indent=1)
+                json.dump({'data': self.list_to_dict(validation_list, 'train')}, f, indent=1)
             with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.test}, f, indent=1)
+                json.dump({'data': self.list_to_dict(self.test, 'test')}, f, indent=1)
             with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.matched_test}, f, indent=1)
+                json.dump({'data': self.list_to_dict(self.matched_test, 'matched_test')}, f, indent=1)
             with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.long_test}, f, indent=1)
+                json.dump({'data': self.list_to_dict(self.long_test, 'long_test')}, f, indent=1)
+
+    def list_to_dict(self, data, split):
+        '''
+        THe ssast library requires a json file in the following format
+         {
+            "data": [
+                {
+                    "wav": "/data/sls/audioset/data/audio/eval/_/_/--4gqARaEJE_0.000.flac",
+                    "labels": "/m/068hy,/m/07q6cd_,/m/0bt9lr,/m/0jbk"
+                },
+                {
+                    "wav": "/data/sls/audioset/data/audio/eval/_/_/--BfvyPmVMo_20.000.flac",
+                    "labels": "/m/03l9g"
+                },
+              // ... many audio files
+                {
+                    "wav": "/data/sls/audioset/data/audio/eval/_/0/-0BIyqJj9ZU_30.000.flac",
+                    "labels": "/m/07rgt08,/m/07sq110,/t/dd00001"
+                }
+            ]
+        }
+        '''
+        formatted_list = [{"wav": f'{self.output_base}/audio_16k/{split}/{instance}', "labels": self.meta_data[self.meta_data['audio_sentence'] == instance].test_result.iloc[0]} for instance in data]
+        return formatted_list
 
     def remove_silence(self, signal, filename):
         '''

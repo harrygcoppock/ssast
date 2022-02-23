@@ -31,7 +31,7 @@ else
     wget https://www.dropbox.com/s/nx6nl4d4bl71sm8/SSAST-Base-Frame-400.pth?dl=1 -O SSAST-Base-Frame-400.pth
 fi
 
-pretrain_exp=exp
+pretrain_exp=
 pretrain_model=SSAST-Base-Frame-400
 
 dataset=ciab

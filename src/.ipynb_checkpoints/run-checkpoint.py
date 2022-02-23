@@ -26,9 +26,7 @@ print("I am process %s, running on %s: starting (%s)" % (os.getpid(), os.uname()
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--data-train", type=str, default=None, help="training data json")
 parser.add_argument("--data-val", type=str, default=None, help="validation data json")
-parser.add_argument("--data-standard-test", type=str, default=None, help="test data json")
-parser.add_argument("--data-matched-test", type=str, default=None, help="matched test data json")
-parser.add_argument("--data-long-test", type=str, default=None, help="longitudinal data json")
+parser.add_argument("--data-eval", type=str, default=None, help="evaluation data json")
 parser.add_argument("--label-csv", type=str, default='', help="csv with class labels")
 parser.add_argument("--n_class", type=int, default=527, help="number of classes")
 
@@ -176,15 +174,8 @@ if args.data_eval != None:
 
     # test the models on the evaluation set
     eval_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_standard_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
+        dataloader.AudioDataset(args.data_eval, label_csv=args.label_csv, audio_conf=val_audio_conf),
         batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-    matched_test_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
-        batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-    long_test_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
-        batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-    
     stats, _ = validate(audio_model, eval_loader, args, 'eval_set')
     eval_acc = stats[0]['acc']
     eval_mAUC = np.mean([stat['auc'] for stat in stats])
@@ -193,18 +184,3 @@ if args.data_eval != None:
     print("AUC: {:.6f}".format(eval_mAUC))
     np.savetxt(args.exp_dir + '/eval_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
 
-    stats, _ = validate(audio_model, matched_test_loader, args, 'eval_set')
-    eval_acc = stats[0]['acc']
-    eval_mAUC = np.mean([stat['auc'] for stat in stats])
-    print('---------------evaluate on the matched test set---------------')
-    print("Accuracy: {:.6f}".format(eval_acc))
-    print("AUC: {:.6f}".format(eval_mAUC))
-    np.savetxt(args.exp_dir + '/matched_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
-    
-    stats, _ = validate(audio_model, long_test_loader, args, 'eval_set')
-    eval_acc = stats[0]['acc']
-    eval_mAUC = np.mean([stat['auc'] for stat in stats])
-    print('---------------evaluate on the long test set---------------')
-    print("Accuracy: {:.6f}".format(eval_acc))
-    print("AUC: {:.6f}".format(eval_mAUC))
-    np.savetxt(args.exp_dir + '/long_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
