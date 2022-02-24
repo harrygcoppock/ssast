@@ -55,16 +55,16 @@ class PrepCIAB():
             
         print('creating json')
         self.create_json()
-        print('Beginining ciab train prepocessing')
-        self.iterate_through_files(self.train, 'train')
-        print('Beginining ciab test prepocessing')
-        self.iterate_through_files(self.test, 'test')
-        print('Beginining ciab long test prepocessing')
-        self.iterate_through_files(self.long_test, 'long_test') 
-        print('Beginining ciab matched test prepocessing')
-        self.iterate_through_files(self.matched_test, 'matched_test') 
-        print('Beginining ciab matched_train prepocessing')
-        self.iterate_through_files(self.matched_train, 'matched_train')
+        #print('Beginining ciab train prepocessing')
+        #self.iterate_through_files(self.train, 'train')
+        #print('Beginining ciab test prepocessing')
+        #self.iterate_through_files(self.test, 'test')
+        #print('Beginining ciab long test prepocessing')
+        #self.iterate_through_files(self.long_test, 'long_test') 
+        #print('Beginining ciab matched test prepocessing')
+        #self.iterate_through_files(self.matched_test, 'matched_test') 
+        #print('Beginining ciab matched_train prepocessing')
+        #self.iterate_through_files(self.matched_train, 'matched_train')
 
     def check_modality(self, modality):
         if modality not in self.POSSIBLE_MODALITIES:
@@ -120,7 +120,7 @@ class PrepCIAB():
         self.tot_removed = 0
         bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id, split) for barcode_id in dataset)
         
-        print(f'Average fraction removed: {mean(self.tot_removed)}')
+        print(f'Average fraction removed: {np.mean(self.tot_removed)}')
         
         with open(f'{self.output_base}/audio_16k/{split}/errorlist.txt', "w") as output:
             output.write(str(self.error_list))
@@ -168,10 +168,10 @@ class PrepCIAB():
                  for (train, test) in kfold.split(self.train)]
 
     def create_json(self):
-        for fold in [1,2,3,4,5]:
-            train_list = [instance for instance in self.train if instance in self.folds[fold-1]]
-            validation_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
-            
+        for fold in tqdm([1,2,3,4,5]):
+            train_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
+            validation_list = [instance for instance in self.train if instance in self.folds[fold-1]]
+            assert not any(x in validation_list for x in train_list), 'there is cross over between train and validation'
             with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
                 json.dump({'data': self.list_to_dict(train_list, 'train')}, f, indent=1)
 
@@ -222,9 +222,9 @@ class PrepCIAB():
         length_post = len(clipped_signal)
         
         random_number = np.random.uniform(0,1,1)
-        if random_number[0] < 0.1:
-
-            self.plot_b_a(signal, np.array(clipped_signal), filename)
+        #hacky way to avoid different plots being assigned to the same fig instance when in parrallel
+        #if random_number[0] < 0.1:
+            #self.plot_b_a(signal, np.array(clipped_signal), filename)
 
         return np.array(clipped_signal), (length_prior - length_post)/length_prior
 
@@ -240,6 +240,7 @@ class PrepCIAB():
         plt.close()
 if __name__ == '__main__':
     ciab = PrepCIAB()
+    ciab.print_stats()
     ciab.main()
 #label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
 #label_map = {}
