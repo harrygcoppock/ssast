@@ -55,16 +55,16 @@ class PrepCIAB():
             
         print('creating json')
         self.create_json()
-        #print('Beginining ciab train prepocessing')
-        #self.iterate_through_files(self.train, 'train')
-        #print('Beginining ciab test prepocessing')
-        #self.iterate_through_files(self.test, 'test')
-        #print('Beginining ciab long test prepocessing')
-        #self.iterate_through_files(self.long_test, 'long_test') 
-        #print('Beginining ciab matched test prepocessing')
-        #self.iterate_through_files(self.matched_test, 'matched_test') 
-        #print('Beginining ciab matched_train prepocessing')
-        #self.iterate_through_files(self.matched_train, 'matched_train')
+        print('Beginining ciab train prepocessing')
+        self.iterate_through_files(self.train, 'train')
+        print('Beginining ciab test prepocessing')
+        self.iterate_through_files(self.test, 'test')
+        print('Beginining ciab long test prepocessing')
+        self.iterate_through_files(self.long_test, 'long_test') 
+        print('Beginining ciab matched test prepocessing')
+        self.iterate_through_files(self.matched_test, 'matched_test') 
+        print('Beginining ciab matched_train prepocessing')
+        self.iterate_through_files(self.matched_train, 'matched_train')
 
     def check_modality(self, modality):
         if modality not in self.POSSIBLE_MODALITIES:
