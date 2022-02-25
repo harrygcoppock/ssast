@@ -20,7 +20,7 @@ def calc_mean_std(dataset):
         psum_sq += (fbank**2).sum()
         count += fbank.numel()
     dataset_mean = psum/count
-    dataset_var = (psum_sq / count) - (total_mean ** 2)
+    dataset_var = (psum_sq / count) - (dataset_mean ** 2)
     dataset_std = np.sqrt(dataset_var)
     return dataset_mean, dataset_std
 

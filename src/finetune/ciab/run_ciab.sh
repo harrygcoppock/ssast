@@ -35,8 +35,8 @@ pretrain_exp=unknown
 pretrain_model=SSAST-Base-Frame-400
 
 dataset=ciab
-dataset_mean=-6.6268077
-dataset_std=5.358466
+dataset_mean=-8.2096
+dataset_std=6.1568
 target_length=512
 noise=True
 
