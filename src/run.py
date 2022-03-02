@@ -157,7 +157,7 @@ else:
 
 # if the dataset has a seperate evaluation set (e.g., speechcommands), then select the model using the validation set and eval on the evaluation set.
 # this is only for fine-tuning
-if args.data_eval != None:
+if args.data_standard_test != None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sd = torch.load(args.exp_dir + '/models/best_audio_model.pth', map_location=device)
     if not isinstance(audio_model, torch.nn.DataParallel):
