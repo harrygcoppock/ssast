@@ -7,6 +7,9 @@
 
 # Author: David Harwath
 # with some functions borrowed from https://github.com/SeanNaren/deepspeech.pytorch
+
+#minor edits by Harry Coppock to allow for dataset norm + mean to be calculated.
+
 import csv
 import json
 import torchaudio
@@ -79,7 +82,10 @@ class AudioDataset(Dataset):
         # skip_norm is a flag that if you want to skip normalization to compute the normalization stats using src/get_norm_stats.py, if Ture, input normalization will be skipped for correctly calculating the stats.
         # set it as True ONLY when you are getting the normalization stats.
         self.skip_norm = self.audio_conf.get('skip_norm') if self.audio_conf.get('skip_norm') else False
+        self.calc_mean_std = self.audio_conf.get('calc_mean_std') if self.audio_conf.get('calc_mean_std') else False
         if self.skip_norm:
+            assert self.calc_mean_std, 'You should only skip normalisation if you are calculating the mean and std of the dataset'
+            assert self.audio_conf.get('mode') == 'train', 'The normalisation stats should only be calculated on the training set, not the test set'
             print('now skip normalization (use it ONLY when you are computing the normalization stats).')
         else:
             print('use dataset mean {:.3f} and std {:.3f} to normalize the input.'.format(self.norm_mean, self.norm_std))
@@ -131,12 +137,13 @@ class AudioDataset(Dataset):
 
         p = target_length - n_frames
 
-        # cut and pad
-        if p > 0:
-            m = torch.nn.ZeroPad2d((0, 0, 0, p))
-            fbank = m(fbank)
-        elif p < 0:
-            fbank = fbank[0:target_length, :]
+        # cut and pad. Skip if calculating mean and std
+        if not self.calc_mean_std:
+            if p > 0:
+                m = torch.nn.ZeroPad2d((0, 0, 0, p))
+                fbank = m(fbank)
+            elif p < 0:
+                fbank = fbank[0:target_length, :]
 
         if filename2 == None:
             return fbank, 0
