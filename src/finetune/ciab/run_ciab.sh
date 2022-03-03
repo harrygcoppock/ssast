@@ -23,9 +23,15 @@ fi
 pretrain_exp=unknown
 pretrain_model=SSAST-Base-Frame-400
 
-dataset=ciab
-dataset_mean=-8.2096
-dataset_std=6.1568
+dataset=ciab_sentence
+if [dataset -eq ciab_three_cough]
+then
+	dataset_mean=-8.2096
+	dataset_std=6.1568
+else
+	dataset_mean=-7.8382
+	dataset_std=5.4489
+fi
 target_length=512
 noise=True
 
@@ -34,7 +40,7 @@ lr=1e-4
 freqm=24
 timem=96
 mixup=0
-epoch=10
+epoch=20
 batch_size=20
 fshape=128
 tshape=2
@@ -58,11 +64,11 @@ do
   validation_data=./data/datafiles/ciab_validation_data_${fold}.json
   standard_test_data=./data/datafiles/ciab_standard_test_data_${fold}.json
   matched_test_data=./data/datafiles/ciab_matched_test_data_${fold}.json
-  long_test_data=./data/datafiles/ciab_long_test_data_${fold}.json
+  #long_test_data=./data/datafiles/ciab_long_test_data_${fold}.json
  
  CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
   --data-train ${train_data} --data-val ${validation_data} --data-standard-test ${standard_test_data} \
-  --data-matched-test ${matched_test_data} --data-long-test ${long_test_data} --exp-dir $exp_dir \
+  --data-matched-test ${matched_test_data} --exp-dir $exp_dir \
   --label-csv ./data/ciab_class_labels_indices.csv --n_class 2 \
   --lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model False \
   --freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \

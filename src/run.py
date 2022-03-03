@@ -181,9 +181,9 @@ if args.data_standard_test != None:
     matched_test_loader = torch.utils.data.DataLoader(
         dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
         batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-    long_test_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
-        batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+    #long_test_loader = torch.utils.data.DataLoader(
+    #    dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
+    #    batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     
     stats, _ = validate(audio_model, eval_loader, args, 'eval_set')
     eval_acc = stats[0]['acc']
@@ -201,10 +201,10 @@ if args.data_standard_test != None:
     print("AUC: {:.6f}".format(eval_mAUC))
     np.savetxt(args.exp_dir + '/matched_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
     
-    stats, _ = validate(audio_model, long_test_loader, args, 'eval_set')
-    eval_acc = stats[0]['acc']
-    eval_mAUC = np.mean([stat['auc'] for stat in stats])
-    print('---------------evaluate on the long test set---------------')
-    print("Accuracy: {:.6f}".format(eval_acc))
-    print("AUC: {:.6f}".format(eval_mAUC))
-    np.savetxt(args.exp_dir + '/long_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
+    #stats, _ = validate(audio_model, long_test_loader, args, 'eval_set')
+    #eval_acc = stats[0]['acc']
+    #eval_mAUC = np.mean([stat['auc'] for stat in stats])
+    #print('---------------evaluate on the long test set---------------')
+    #print("Accuracy: {:.6f}".format(eval_acc))
+    #print("AUC: {:.6f}".format(eval_mAUC))
+    #np.savetxt(args.exp_dir + '/long_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
