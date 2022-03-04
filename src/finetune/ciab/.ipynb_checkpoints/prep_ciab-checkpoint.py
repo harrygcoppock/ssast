@@ -8,7 +8,7 @@ import json
 import os
 import zipfile
 import wget
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold
 
 import pandas as pd
 import subprocess, glob, csv
@@ -103,7 +103,8 @@ class PrepCIAB():
                             ])
         long_test = pd.read_csv(self.get_file(
                                     self.PATHS['longitudinal'],
-                                    self.bucket_meta))
+                                    self.bucket_meta),
+                                    names=['id'])
 
         matched_test = pd.read_csv(self.get_file(
                                     self.PATHS['matched'],
@@ -114,7 +115,7 @@ class PrepCIAB():
                                     self.bucket_meta),
                                     names=['id'])
 
-        return meta_data, train_test['train'], train_test['test'], long_test['audio_sentence'].tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
+        return meta_data, train_test['train'], train_test['test'], long_test['id'].tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
 
 
     def iterate_through_files(self, dataset, split='train'):
@@ -184,7 +185,7 @@ class PrepCIAB():
         with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_test_list}, f, indent=1)
         with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': dic_matched_test_list}, f, indent=1)
+            json.dump({'data': dic_mathed_test_list}, f, indent=1)
         with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_long_test_list}, f, indent=1)
         #create naive training evaluation sets. Note: this is for an ablation study to show the inflated performance
@@ -197,7 +198,7 @@ class PrepCIAB():
         with open('./data/datafiles/naive_train_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_train}, f, indent=1)
         with open('./data/datafiles/naive_validation_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': self.naive_val}, f, indent=1)
+            json.dump({'data': self.naive_validation}, f, indent=1)
         with open('./data/datafiles/naive_test_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_test}, f, indent=1)
 
