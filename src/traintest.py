@@ -330,7 +330,8 @@ def validate(audio_model, val_loader, args, epoch):
         target = torch.cat(A_targets)
         loss = np.mean(A_loss)
         stats = calculate_stats(audio_output, target)
-
+        # adding some more metrics to calculate + saving in the format as the rest of the study.
+        metrics = ciab_metrics(audio_output, target)
         # save the prediction here
         exp_dir = args.exp_dir
         if os.path.exists(exp_dir+'/predictions') == False:

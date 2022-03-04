@@ -156,9 +156,9 @@ class PrepCIAB():
                 Test: {len(self.test)}, \
                 Long_test: {len(self.long_test)} \
                 matched_test: {len(self.matched_test)} \
-                naive train: {self.naive_train} \
-                naive validation: {self.naive_val} \
-                naive test: {self.naive_test}')
+                naive train: {len(self.naive_train)} \
+                naive validation: {len(self.naive_val)} \
+                naive test: {len(self.naive_test)}')
     
     def create_folds(self):
         kfold = KFold(n_splits=5, shuffle=True, random_state=self.RANDOM_SEED)
@@ -200,7 +200,14 @@ class PrepCIAB():
             json.dump({'data': self.naive_val}, f, indent=1)
         with open('./data/datafiles/naive_test_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_test}, f, indent=1)
+        # Here we create an additional training set where we add the longitudinal data to the train
+        big_train = dic_train_list + dic_validation_list + dic_long_test_list 
+        self.big_train, self.big_val = self.create_naive_splits(big_train, just_val=True) 
 
+        with open('./data/datafiles/big_train_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_train}, f, indent=1)
+        with open('./data/datafiles/big_validation_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_val}, f, indent=1)
     def list_to_dict(self, data, split):
         '''
         THe ssast library requires a json file in the following format
@@ -256,14 +263,16 @@ class PrepCIAB():
         plt.savefig(f'figs/{filename}.png')
         plt.close()
 
-    def create_naive_splits(self, data):
+    def create_naive_splits(self, data, just_val=False):
         '''
         given a list of ids of all the available data randomly create train/val/splits
         '''
         train_X, dev_test_X = train_test_split(
                     data,
-                    test_size=0.3,
+                    test_size=0.3 if not just_val else 0.2,
                     random_state=self.RANDOM_SEED)
+        if just_val:
+            return train_X, dev_test_X
         devel_X, test_X = train_test_split(
                     dev_test_X,
                     test_size=0.5,
@@ -281,38 +290,3 @@ if __name__ == '__main__':
     ciab = PrepCIAB('audio_sentence_url')
     ciab.main()
     ciab.print_stats()
-#label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
-#label_map = {}
-#for i in range(1, len(label_set)):
-#    label_map[eval(label_set[i][2])] = label_set[i][0]
-#print(label_map)
-#
-## fix bug: generate an empty directory to save json files
-#if os.path.exists('./data/datafiles') == False:
-#    os.mkdir('./data/datafiles')
-#
-#for fold in [1,2,3,4,5]:
-#    base_path = os.path.abspath(os.getcwd()) + "/data/ESC-50-master/audio_16k/"
-#    meta = np.loadtxt('./data/ESC-50-master/meta/esc50.csv', delimiter=',', dtype='str', skiprows=1)
-#    train_wav_list = []
-#    eval_wav_list = []
-#    for i in range(0, len(meta)):
-#        cur_label = label_map[meta[i][3]]
-#        cur_path = meta[i][0]
-#        cur_fold = int(meta[i][1])
-#        # /m/07rwj is just a dummy prefix
-#        cur_dict = {"wav": base_path + cur_path, "labels": '/m/07rwj'+cur_label.zfill(2)}
-#        if cur_fold == fold:
-#            eval_wav_list.append(cur_dict)
-#        else:
-#            train_wav_list.append(cur_dict)
-#
-#    print('fold {:d}: {:d} training samples, {:d} test samples'.format(fold, len(train_wav_list), len(eval_wav_list)))
-#
-#    with open('./data/datafiles/esc_train_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': train_wav_list}, f, indent=1)
-#
-#    with open('./data/datafiles/esc_eval_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': eval_wav_list}, f, indent=1)
-#
-#print('Finished ESC-50 Preparation')
