@@ -322,9 +322,9 @@ def validate(audio_model, val_loader, args, epoch):
             # compute the loss
             labels = labels.to(device)
             if isinstance(args.loss_fn, torch.nn.CrossEntropyLoss):
-                loss = args.loss_fn(audio_output, torch.argmax(labels.long(), axis=1))
+                loss = args.loss_fn(audio_output_for_loss, torch.argmax(labels.long(), axis=1))
             else:
-                loss = args.loss_fn(audio_output, labels)
+                loss = args.loss_fn(audio_output_for_loss, labels)
             A_loss.append(loss.to('cpu').detach())
 
             batch_time.update(time.time() - end)
