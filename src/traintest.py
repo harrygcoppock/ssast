@@ -290,7 +290,7 @@ def train(audio_model, train_loader, test_loader, args):
         print("valid_loss: {:.6f}".format(valid_loss))
         np.savetxt(exp_dir + '/wa_result.csv', wa_result)
 
-def validate(audio_model, val_loader, args, epoch):
+def validate(audio_model, val_loader, args, epoch, pca_proj=False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_time = AverageMeter()
     if not isinstance(audio_model, nn.DataParallel):
@@ -303,12 +303,21 @@ def validate(audio_model, val_loader, args, epoch):
     A_predictions = []
     A_targets = []
     A_loss = []
+    A_pca_proj_values = []
     with torch.no_grad():
-        for i, (audio_input, labels) in enumerate(val_loader):
+        for i, data in enumerate(val_loader):
+            if pca_proj == True:
+                audio_input, labels, names = data
+            else:
+                audio_input, labels = data
             audio_input = audio_input.to(device)
 
             # compute output
-            audio_output = audio_model(audio_input, args.task)
+            if pca_proj:
+                audio_output, pca_proj_values = audio_model(audio_input, args.task, pca_proj)
+                A_pca_proj_values.append(pca_proj_value)
+            else:
+                audio_output = audio_model(audio_input, args.task)
             audio_output_for_loss = audio_output
             if isinstance(args.loss_fn, torch.nn.CrossEntropyLoss):
                 audio_output = torch.nn.functional.softmax(audio_output)
@@ -334,6 +343,8 @@ def validate(audio_model, val_loader, args, epoch):
         target = torch.cat(A_targets)
         loss = np.mean(A_loss)
         stats = calculate_stats(audio_output, target)
+        if pca_proj:
+            torch.cat(A_pca_proj_values, dim=0)
         # adding some more metrics to calculate + saving in the format as the rest of the study.
         metrics = ciab_metrics(audio_output, target)
         # save the prediction here
@@ -390,3 +401,12 @@ def validate_wa(audio_model, val_loader, args, start_epoch, end_epoch):
 
     stats, loss = validate(audio_model, val_loader, args, 'wa')
     return stats
+
+def tensor_to_csv(pca_proj_values, names):
+    '''
+    the pca projection function expects a csv with a instance names and there
+    corresponding learnt vector
+    '''
+    pca_proj_values = pca_proj_values.cpu().squeeze().numpy()
+    pca_df = pd.DataFrame(pca_proj_values, columns=None)
+    pca_df['barcode'] = names.

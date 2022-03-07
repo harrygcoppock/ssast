@@ -55,11 +55,12 @@ def preemphasis(signal,coeff=0.97):
     return np.append(signal[0],signal[1:]-coeff*signal[:-1])
 
 class AudioDataset(Dataset):
-    def __init__(self, dataset_json_file, audio_conf, label_csv=None):
+    def __init__(self, dataset_json_file, audio_conf, label_csv=None, pca_proj=False):
         """
         Dataset that manages audio recordings
         :param audio_conf: Dictionary containing the audio loading and preprocessing settings
         :param dataset_json_file
+        pac_proj: If True return the instance ids so that pca projection of final layer can be visualised
         """
         self.datapath = dataset_json_file
         with open(dataset_json_file, 'r') as fp:
@@ -97,6 +98,7 @@ class AudioDataset(Dataset):
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         print('number of classes is {:d}'.format(self.label_num))
+        self.pca_proj = pca_proj
 
     def _wav2fbank(self, filename, filename2=None):
         # mixup
@@ -207,7 +209,8 @@ class AudioDataset(Dataset):
         if self.noise == True:
             fbank = fbank + torch.rand(fbank.shape[0], fbank.shape[1]) * np.random.rand() / 10
             fbank = torch.roll(fbank, np.random.randint(-10, 10), 0)
-
+        if self.pca_proj:
+            return fbank, label_indices, 
         # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
         return fbank, label_indices
 

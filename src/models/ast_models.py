@@ -241,7 +241,7 @@ class ASTModel(nn.Module):
         mask_id = random.sample(range(0, sequence_len), mask_size)
         return torch.tensor(mask_id)
 
-    def finetuningavgtok(self, x):
+    def finetuningavgtok(self, x, pca_proj=False):
         B = x.shape[0]
         x = self.v.patch_embed(x)
         if self.cls_token_num == 2:
@@ -257,10 +257,13 @@ class ASTModel(nn.Module):
         for blk_id, blk in enumerate(self.v.blocks):
             x = blk(x)
         x = self.v.norm(x)
-
         # average output of all tokens except cls token(s)
         x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
+        if pca_proj:
+            pca_proj_values = x
         x = self.mlp_head(x)
+        if pca_proj:
+            return x, pca_proj_values
         return x
 
     def finetuningcls(self, x):
@@ -431,7 +434,7 @@ class ASTModel(nn.Module):
 
         return mse
 
-    def forward(self, x, task, cluster=True, mask_patch=400):
+    def forward(self, x, task, cluster=True, mask_patch=400, pca_proj=False):
         # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
         x = x.unsqueeze(1)
         x = x.transpose(2, 3)
@@ -439,7 +442,7 @@ class ASTModel(nn.Module):
         # finetuning (ft), use the mean of all token (patch) output as clip-level representation.
         # this is default for SSAST fine-tuning as during pretraining, supervision signal is given to each token, not the [cls] token
         if task == 'ft_avgtok':
-            return self.finetuningavgtok(x)
+            return self.finetuningavgtok(x, pca_proj=pca_proj)
         # alternatively, use the [cls] token output as clip-level representation.
         elif task == 'ft_cls':
             return self.finetuningcls(x)

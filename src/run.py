@@ -158,6 +158,8 @@ else:
 # if the dataset has a seperate evaluation set (e.g., speechcommands), then select the model using the validation set and eval on the evaluation set.
 # this is only for fine-tuning
 if args.data_standard_test != None:
+    # saving covid specific results for turing
+    metrics = {}
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sd = torch.load(args.exp_dir + '/models/best_audio_model.pth', map_location=device)
     if not isinstance(audio_model, torch.nn.DataParallel):
@@ -168,6 +170,7 @@ if args.data_standard_test != None:
     args.loss_fn = torch.nn.BCEWithLogitsLoss()
     stats, _ = validate(audio_model, val_loader, args, 'valid_set')
     # note it is NOT mean of class-wise accuracy
+    metrics['val'] = stats[1]
     val_acc = stats[0]['acc']
     val_mAUC = np.mean([stat['auc'] for stat in stats])
     print('---------------evaluate on the validation set---------------')
@@ -176,10 +179,11 @@ if args.data_standard_test != None:
 
     # test the models on the evaluation set
     eval_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_standard_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
+        dataloader.AudioDataset(args.data_standard_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
         batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     
     stats, _ = validate(audio_model, eval_loader, args, 'eval_set')
+    metrics['standard_test']= stats[1]
     eval_acc = stats[0]['acc']
     eval_mAUC = np.mean([stat['auc'] for stat in stats])
     print('---------------evaluate on the test set---------------')
@@ -188,9 +192,10 @@ if args.data_standard_test != None:
     np.savetxt(args.exp_dir + '/eval_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
     if args.data_matched_test != None:
         matched_test_loader = torch.utils.data.DataLoader(
-            dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
+            dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
             batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
         stats, _ = validate(audio_model, matched_test_loader, args, 'eval_set')
+        metrics['matched_test'] = stats[1]
         eval_acc = stats[0]['acc']
         eval_mAUC = np.mean([stat['auc'] for stat in stats])
         print('---------------evaluate on the matched test set---------------')
@@ -199,12 +204,16 @@ if args.data_standard_test != None:
         np.savetxt(args.exp_dir + '/matched_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
     if args.data_long_test != None:
         long_test_loader = torch.utils.data.DataLoader(
-            dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf),
+            dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
             batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
         stats, _ = validate(audio_model, long_test_loader, args, 'eval_set')
+        metrics['long_test'] = stats[1]
         eval_acc = stats[0]['acc']
         eval_mAUC = np.mean([stat['auc'] for stat in stats])
         print('---------------evaluate on the long test set---------------')
         print("Accuracy: {:.6f}".format(eval_acc))
         print("AUC: {:.6f}".format(eval_mAUC))
         np.savetxt(args.exp_dir + '/long_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
+
+    with open(os.path.join(args.exp_dir, f'metrics.json'), 'w') as f:
+        json.dump(metrics, f)
