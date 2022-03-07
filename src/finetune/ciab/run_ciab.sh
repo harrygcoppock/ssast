@@ -24,7 +24,7 @@ pretrain_exp=unknown
 pretrain_model=SSAST-Base-Frame-400
 
 dataset=ciab_sentence
-if [dataset -eq ciab_three_cough]
+if [${dataset} -eq ciab_three_cough]
 then
 	dataset_mean=-8.2096
 	dataset_std=6.1568
@@ -40,7 +40,7 @@ lr=1e-4
 freqm=24
 timem=96
 mixup=0
-epoch=20
+epoch=1
 batch_size=20
 fshape=128
 tshape=2
@@ -72,7 +72,7 @@ naive_test_data=./data/datafiles/naive_test_${fold}.json
 # standard train
 CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
 --data-train ${train_data} --data-val ${validation_data} --data-standard-test ${standard_test_data} \
---data-matched-test ${matched_test_data} ---data-long-test ${long_test_data} -exp-dir $exp_dir \
+--data-matched-test ${matched_test_data} --data-long-test ${long_test_data} --exp-dir $exp_dir \
 --label-csv ./data/ciab_class_labels_indices.csv --n_class 2 \
 --lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model False \
 --freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \

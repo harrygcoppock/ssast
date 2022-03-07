@@ -14,6 +14,7 @@ import time
 import torch
 from torch import nn
 import numpy as np
+import pandas as pd
 import pickle
 from torch.cuda.amp import autocast,GradScaler
 
@@ -315,8 +316,8 @@ def validate(audio_model, val_loader, args, epoch, pca_proj=False, dataset=None)
 
             # compute output
             if pca_proj:
-                audio_output, pca_proj_values = audio_model(audio_input, args.task, pca_proj)
-                A_pca_proj_values.append(pca_proj_value)
+                audio_output, pca_proj_values = audio_model(audio_input, args.task, pca_proj=pca_proj)
+                A_pca_proj_values.append(pca_proj_values)
                 A_indexes.append(indexes)
             else:
                 audio_output = audio_model(audio_input, args.task)
@@ -350,18 +351,16 @@ def validate(audio_model, val_loader, args, epoch, pca_proj=False, dataset=None)
                     torch.cat(A_pca_proj_values, dim=0),
                     torch.cat(A_indexes, dim=0),
                     dataset)
-           pca_df.to_csv(exp_dir+'/pca_projections.csv') 
 
 
-        # adding some more metrics to calculate + saving in the format as the rest of the study.
-        metrics = ciab_metrics(audio_output, target)
         # save the prediction here
         exp_dir = args.exp_dir
         if os.path.exists(exp_dir+'/predictions') == False:
             os.mkdir(exp_dir+'/predictions')
             np.savetxt(exp_dir+'/predictions/target.csv', target, delimiter=',')
         np.savetxt(exp_dir+'/predictions/predictions_' + str(epoch) + '.csv', audio_output, delimiter=',')
-
+    if pca_proj:
+        return stats, loss, pca_df
     return stats, loss
 
 def validate_ensemble(args, epoch):
@@ -417,7 +416,7 @@ def tensor_to_csv(pca_proj_values, indexes, dataset):
     '''
     pca_proj_values = pca_proj_values.cpu().squeeze().numpy()
     pca_df = pd.DataFrame(pca_proj_values, columns=None)
-    pca_df['barcode'] = names.squeeze().numpy()
+    pca_df['barcode'] = indexes.squeeze().numpy()
     pca_df['barcode'] = pca_df['barcode'].apply(lambda x:  dataset.data[x]['wav'])
 
     return pca_df

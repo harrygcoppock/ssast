@@ -45,14 +45,15 @@ def calculate_stats(output, target):
         # FPR, TPR
         (fpr, tpr, thresholds) = metrics.roc_curve(target[:, k], output[:, k])
 
-        dict = {'precisions': precisions[0:],
-                'recalls': recalls[0:],
+        dict = {'precisions': precisions,
+                'recalls': recalls,
                 'AP': avg_precision,
-                'fpr': fpr[0:],
-                'fnr': 1. - tpr[0:],
+                'fpr': fpr,
+                'fnr': 1. - tpr,
                 'auc': auc,
                 # note acc is not class-wise, this is just to keep consistent with other metrics
-                'acc': acc
+                'acc': acc,
+                'uar': uar
                 }
         stats.append(dict)
 

@@ -12,6 +12,7 @@ import pickle
 import sys
 import time
 import torch
+import pandas as pd
 from torch.utils.data import WeightedRandomSampler
 basepath = os.path.dirname(os.path.dirname(sys.path[0]))
 sys.path.append(basepath)
@@ -116,10 +117,10 @@ else:
     train_loader = torch.utils.data.DataLoader(
         dataloader.AudioDataset(args.data_train, label_csv=args.label_csv, audio_conf=audio_conf),
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=False, drop_last=True)
-
+val_dataset = dataloader.AudioDataset(args.data_val, label_csv=args.label_csv, audio_conf=val_audio_conf)
 val_loader = torch.utils.data.DataLoader(
-    dataloader.AudioDataset(args.data_val, label_csv=args.label_csv, audio_conf=val_audio_conf),
-    batch_size=args.batch_size * 2, shuffle=False, num_workers=args.num_workers, pin_memory=False)
+        val_dataset,
+        batch_size=args.batch_size * 2, shuffle=False, num_workers=args.num_workers, pin_memory=False)
 
 print('Now train with {:s} with {:d} training samples, evaluate with {:d} samples'.format(args.dataset, len(train_loader.dataset), len(val_loader.dataset)))
 
@@ -178,23 +179,26 @@ if args.data_standard_test != None:
     print("AUC: {:.6f}".format(val_mAUC))
 
     # test the models on the evaluation set
+    eval_dataset = dataloader.AudioDataset(args.data_standard_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True)
     eval_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_standard_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
+        eval_dataset,
         batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     
-    stats, _ = validate(audio_model, eval_loader, args, 'eval_set')
+    stats, _, pca_proj= validate(audio_model, eval_loader, args, 'eval_set', pca_proj=True, dataset=eval_dataset)
     metrics['standard_test']= stats[1]
     eval_acc = stats[0]['acc']
     eval_mAUC = np.mean([stat['auc'] for stat in stats])
     print('---------------evaluate on the test set---------------')
     print("Accuracy: {:.6f}".format(eval_acc))
     print("AUC: {:.6f}".format(eval_mAUC))
+    pca_proj.to_csv(args.exp_dir+'/standard_test_pca_projections.csv') 
     np.savetxt(args.exp_dir + '/eval_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
     if args.data_matched_test != None:
+        matched_dataset = dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True)
         matched_test_loader = torch.utils.data.DataLoader(
-            dataloader.AudioDataset(args.data_matched_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
-            batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-        stats, _ = validate(audio_model, matched_test_loader, args, 'eval_set')
+                matched_dataset,
+                batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        stats, _, pca_proj = validate(audio_model, matched_test_loader, args, 'eval_set', pca_proj=True, dataset=matched_dataset)
         metrics['matched_test'] = stats[1]
         eval_acc = stats[0]['acc']
         eval_mAUC = np.mean([stat['auc'] for stat in stats])
@@ -202,11 +206,13 @@ if args.data_standard_test != None:
         print("Accuracy: {:.6f}".format(eval_acc))
         print("AUC: {:.6f}".format(eval_mAUC))
         np.savetxt(args.exp_dir + '/matched_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
+        pca_proj.to_csv(args.exp_dir+'/matched_test_pca_projections.csv') 
     if args.data_long_test != None:
+        long_dataset = dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
         long_test_loader = torch.utils.data.DataLoader(
-            dataloader.AudioDataset(args.data_long_test, label_csv=args.label_csv, audio_conf=val_audio_conf, pca_proj=True),
-            batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-        stats, _ = validate(audio_model, long_test_loader, args, 'eval_set')
+                long_dataset,
+                batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        stats, _, pca_proj = validate(audio_model, long_test_loader, args, 'eval_set', pca_proj=True, dataset=long_dataset)
         metrics['long_test'] = stats[1]
         eval_acc = stats[0]['acc']
         eval_mAUC = np.mean([stat['auc'] for stat in stats])
@@ -214,6 +220,7 @@ if args.data_standard_test != None:
         print("Accuracy: {:.6f}".format(eval_acc))
         print("AUC: {:.6f}".format(eval_mAUC))
         np.savetxt(args.exp_dir + '/long_test_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
+        pca_proj.to_csv(args.exp_dir+'/long_test_pca_projections.csv') 
 
     with open(os.path.join(args.exp_dir, f'metrics.json'), 'w') as f:
         json.dump(metrics, f)

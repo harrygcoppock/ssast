@@ -67,6 +67,7 @@ class AudioDataset(Dataset):
             data_json = json.load(fp)
 
         self.data = data_json['data']
+        self.data = self.data[:500]
         self.audio_conf = audio_conf
         print('---------------the {:s} dataloader---------------'.format(self.audio_conf.get('mode')))
         self.melbins = self.audio_conf.get('num_mel_bins')

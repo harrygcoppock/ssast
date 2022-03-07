@@ -177,15 +177,15 @@ class PrepCIAB():
         dic_matched_test_list = self.list_to_dict(self.matched_test, 'matched_test')
         dic_matched_train_list = self.list_to_dict(self.matched_train, 'matched_train')
         dic_long_test_list = self.list_to_dict(self.long_test, 'long_test')
-        with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_train_list}, f, indent=1)
-        with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_validation_list}, f, indent=1)
-        with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_test_list}, f, indent=1)
-        with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_matched_test_list}, f, indent=1)
-        with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_long_test_list}, f, indent=1)
         #create naive training evaluation sets. Note: this is for an ablation study to show the inflated performance
         all_data = dic_train_list + dic_validation_list + dic_test_list + dic_long_test_list # matched test and matched train are subsets of test and train respectively
@@ -194,11 +194,11 @@ class PrepCIAB():
         assert not any(x in self.back_to_list(self.naive_val) for x in self.naive_train), 'there is cross over between naive train and naive validation'
         assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_train), 'there is cross over between naive train and naive test'
         assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_val), 'there is cross over between naive test and naive validation'
-        with open('./data/datafiles/naive_train_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/naive_train_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_train}, f, indent=1)
-        with open('./data/datafiles/naive_validation_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/naive_validation_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_val}, f, indent=1)
-        with open('./data/datafiles/naive_test_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/naive_test_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_test}, f, indent=1)
         # Here we create an additional training set where we add the longitudinal data to the train
         big_train = dic_train_list + dic_validation_list + dic_long_test_list 
