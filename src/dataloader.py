@@ -210,7 +210,7 @@ class AudioDataset(Dataset):
             fbank = fbank + torch.rand(fbank.shape[0], fbank.shape[1]) * np.random.rand() / 10
             fbank = torch.roll(fbank, np.random.randint(-10, 10), 0)
         if self.pca_proj:
-            return fbank, label_indices, 
+            return fbank, label_indices, torch.tensor([index], dtype=torch.int)
         # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
         return fbank, label_indices
 
