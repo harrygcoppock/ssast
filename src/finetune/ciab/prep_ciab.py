@@ -204,9 +204,9 @@ class PrepCIAB():
         big_train = dic_train_list + dic_validation_list + dic_long_test_list 
         self.big_train, self.big_val = self.create_naive_splits(big_train, just_val=True) 
 
-        with open('./data/datafiles/big_train_'+ str(fold) +'.json', 'w') as f:
+        with open('./data/datafiles/{self.modality}/big_train_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.big_train}, f, indent=1)
-        with open('./data/datafiles/big_validation_'+ str(fold) +'.json', 'w') as f:
+        with open('./data/datafiles/{self.modality}/big_validation_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.big_val}, f, indent=1)
     def list_to_dict(self, data, split):
         '''

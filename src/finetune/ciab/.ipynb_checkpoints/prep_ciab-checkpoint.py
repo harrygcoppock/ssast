@@ -8,7 +8,7 @@ import json
 import os
 import zipfile
 import wget
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 
 import pandas as pd
 import subprocess, glob, csv
@@ -103,8 +103,7 @@ class PrepCIAB():
                             ])
         long_test = pd.read_csv(self.get_file(
                                     self.PATHS['longitudinal'],
-                                    self.bucket_meta),
-                                    names=['id'])
+                                    self.bucket_meta))
 
         matched_test = pd.read_csv(self.get_file(
                                     self.PATHS['matched'],
@@ -115,7 +114,7 @@ class PrepCIAB():
                                     self.bucket_meta),
                                     names=['id'])
 
-        return meta_data, train_test['train'], train_test['test'], long_test['id'].tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
+        return meta_data, train_test['train'], train_test['test'], long_test['audio_sentence'].tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
 
 
     def iterate_through_files(self, dataset, split='train'):
@@ -157,9 +156,9 @@ class PrepCIAB():
                 Test: {len(self.test)}, \
                 Long_test: {len(self.long_test)} \
                 matched_test: {len(self.matched_test)} \
-                naive train: {self.naive_train} \
-                naive validation: {self.naive_val} \
-                naive test: {self.naive_test}')
+                naive train: {len(self.naive_train)} \
+                naive validation: {len(self.naive_val)} \
+                naive test: {len(self.naive_test)}')
     
     def create_folds(self):
         kfold = KFold(n_splits=5, shuffle=True, random_state=self.RANDOM_SEED)
@@ -178,15 +177,15 @@ class PrepCIAB():
         dic_matched_test_list = self.list_to_dict(self.matched_test, 'matched_test')
         dic_matched_train_list = self.list_to_dict(self.matched_train, 'matched_train')
         dic_long_test_list = self.list_to_dict(self.long_test, 'long_test')
-        with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_train_list}, f, indent=1)
-        with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_validation_list}, f, indent=1)
-        with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_test_list}, f, indent=1)
-        with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': dic_mathed_test_list}, f, indent=1)
-        with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_matched_test_list}, f, indent=1)
+        with open(f'./data/datafiles/{self.modality}/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': dic_long_test_list}, f, indent=1)
         #create naive training evaluation sets. Note: this is for an ablation study to show the inflated performance
         all_data = dic_train_list + dic_validation_list + dic_test_list + dic_long_test_list # matched test and matched train are subsets of test and train respectively
@@ -195,13 +194,20 @@ class PrepCIAB():
         assert not any(x in self.back_to_list(self.naive_val) for x in self.naive_train), 'there is cross over between naive train and naive validation'
         assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_train), 'there is cross over between naive train and naive test'
         assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_val), 'there is cross over between naive test and naive validation'
-        with open('./data/datafiles/naive_train_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/naive_train_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_train}, f, indent=1)
-        with open('./data/datafiles/naive_validation_'+ str(fold) +'.json', 'w') as f:
-            json.dump({'data': self.naive_validation}, f, indent=1)
-        with open('./data/datafiles/naive_test_'+ str(fold) +'.json', 'w') as f:
+        with open(f'./data/datafiles/{self.modality}/naive_validation_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.naive_val}, f, indent=1)
+        with open(f'./data/datafiles/{self.modality}/naive_test_'+ str(fold) +'.json', 'w') as f:
             json.dump({'data': self.naive_test}, f, indent=1)
+        # Here we create an additional training set where we add the longitudinal data to the train
+        big_train = dic_train_list + dic_validation_list + dic_long_test_list 
+        self.big_train, self.big_val = self.create_naive_splits(big_train, just_val=True) 
 
+        with open('./data/datafiles/{self.modality}/big_train_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_train}, f, indent=1)
+        with open('./data/datafiles/{self.modality}/big_validation_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_val}, f, indent=1)
     def list_to_dict(self, data, split):
         '''
         THe ssast library requires a json file in the following format
@@ -257,14 +263,16 @@ class PrepCIAB():
         plt.savefig(f'figs/{filename}.png')
         plt.close()
 
-    def create_naive_splits(self, data):
+    def create_naive_splits(self, data, just_val=False):
         '''
         given a list of ids of all the available data randomly create train/val/splits
         '''
         train_X, dev_test_X = train_test_split(
                     data,
-                    test_size=0.3,
+                    test_size=0.3 if not just_val else 0.2,
                     random_state=self.RANDOM_SEED)
+        if just_val:
+            return train_X, dev_test_X
         devel_X, test_X = train_test_split(
                     dev_test_X,
                     test_size=0.5,
@@ -282,38 +290,3 @@ if __name__ == '__main__':
     ciab = PrepCIAB('audio_sentence_url')
     ciab.main()
     ciab.print_stats()
-#label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
-#label_map = {}
-#for i in range(1, len(label_set)):
-#    label_map[eval(label_set[i][2])] = label_set[i][0]
-#print(label_map)
-#
-## fix bug: generate an empty directory to save json files
-#if os.path.exists('./data/datafiles') == False:
-#    os.mkdir('./data/datafiles')
-#
-#for fold in [1,2,3,4,5]:
-#    base_path = os.path.abspath(os.getcwd()) + "/data/ESC-50-master/audio_16k/"
-#    meta = np.loadtxt('./data/ESC-50-master/meta/esc50.csv', delimiter=',', dtype='str', skiprows=1)
-#    train_wav_list = []
-#    eval_wav_list = []
-#    for i in range(0, len(meta)):
-#        cur_label = label_map[meta[i][3]]
-#        cur_path = meta[i][0]
-#        cur_fold = int(meta[i][1])
-#        # /m/07rwj is just a dummy prefix
-#        cur_dict = {"wav": base_path + cur_path, "labels": '/m/07rwj'+cur_label.zfill(2)}
-#        if cur_fold == fold:
-#            eval_wav_list.append(cur_dict)
-#        else:
-#            train_wav_list.append(cur_dict)
-#
-#    print('fold {:d}: {:d} training samples, {:d} test samples'.format(fold, len(train_wav_list), len(eval_wav_list)))
-#
-#    with open('./data/datafiles/esc_train_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': train_wav_list}, f, indent=1)
-#
-#    with open('./data/datafiles/esc_eval_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': eval_wav_list}, f, indent=1)
-#
-#print('Finished ESC-50 Preparation')

@@ -58,16 +58,16 @@ echo 'now process fold'${fold}
 
 exp_dir=${base_exp_dir}/fold${fold}
 
-train_data=./data/datafiles/ciab_train_data_${fold}.json
-validation_data=./data/datafiles/ciab_validation_data_${fold}.json
-standard_test_data=./data/datafiles/ciab_standard_test_data_${fold}.json
-matched_test_data=./data/datafiles/ciab_matched_test_data_${fold}.json
-matched_train_data=./data/datafiles/ciab_matched_train_data_${fold}.json
-matched_validation_data=./data/datafiles/ciab_matched_validation_data_${fold}.json
-long_test_data=./data/datafiles/ciab_long_test_data_${fold}.json
-naive_train_data=./data/datafiles/naive_train_${fold}.json
-naive_validation_data=./data/datafiles/naive_validation_${fold}.json
-naive_test_data=./data/datafiles/naive_test_${fold}.json
+train_data=./data/datafiles/audio_sentence_url/ciab_train_data_${fold}.json
+validation_data=./data/datafiles/audio_sentence_url/ciab_validation_data_${fold}.json
+standard_test_data=./data/datafiles/audio_sentence_url/ciab_standard_test_data_${fold}.json
+matched_test_data=./data/datafiles/audio_sentence_url/ciab_matched_test_data_${fold}.json
+matched_train_data=./data/datafiles/audio_sentence_url/ciab_matched_train_data_${fold}.json
+matched_validation_data=./data/datafiles/audio_sentence_url/ciab_matched_validation_data_${fold}.json
+long_test_data=./data/datafiles/audio_sentence_url/ciab_long_test_data_${fold}.json
+naive_train_data=./data/datafiles/audio_sentence_url/naive_train_${fold}.json
+naive_validation_data=./data/datafiles/audio_sentence_url/naive_validation_${fold}.json
+naive_test_data=./data/datafiles/audio_sentence_url/naive_test_${fold}.json
 
 # standard train
 CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
@@ -84,21 +84,21 @@ CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
 --lrscheduler_start 6 --lrscheduler_step 1 --lrscheduler_decay 0.85 --wa False --loss CE --metrics mAP
 
 # matched train
-base_exp_dir=./exp/test01-${dataset}-f${fstride}-${fshape}-t${tstride}-${tshape}-b${batch_size}-lr${lr}-${task}-${model_size}-${pretrain_exp}-${pretrain_model}-${head_lr}x-noise${noise}-matched-train
-exp_dir=${base_exp_dir}/fold${fold}
-CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
---data-train ${matched_train_data} --data-val ${matched_validation_data} \
---data-standard-test ${standard_test_data} --data-long-test ${long_test_data}\
---data-matched-test ${matched_test_data} --exp-dir $exp_dir \
---label-csv ./data/ciab_class_labels_indices.csv --n_class 2 \
---lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model False \
---freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \
---tstride $tstride --fstride $fstride --fshape ${fshape} --tshape ${tshape} --warmup False --task ${task} \
---model_size ${model_size} --adaptschedule False \
---pretrain False --pretrained_mdl_path ${pretrain_path} \
---dataset_mean ${dataset_mean} --dataset_std ${dataset_std} --target_length ${target_length} \
---num_mel_bins 128 --head_lr ${head_lr} --noise ${noise} \
---lrscheduler_start 6 --lrscheduler_step 1 --lrscheduler_decay 0.85 --wa False --loss CE --metrics mAP
+#base_exp_dir=./exp/test01-${dataset}-f${fstride}-${fshape}-t${tstride}-${tshape}-b${batch_size}-lr${lr}-${task}-${model_size}-${pretrain_exp}-${pretrain_model}-${head_lr}x-noise${noise}-matched-train
+#exp_dir=${base_exp_dir}/fold${fold}
+#CUDA_CACHE_DISABLE=1 python -W ignore ../../run.py --dataset ${dataset} \
+#--data-train ${matched_train_data} --data-val ${matched_validation_data} \
+#--data-standard-test ${standard_test_data} --data-long-test ${long_test_data}\
+#--data-matched-test ${matched_test_data} --exp-dir $exp_dir \
+#--label-csv ./data/ciab_class_labels_indices.csv --n_class 2 \
+#--lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model False \
+#--freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \
+#--tstride $tstride --fstride $fstride --fshape ${fshape} --tshape ${tshape} --warmup False --task ${task} \
+#--model_size ${model_size} --adaptschedule False \
+#--pretrain False --pretrained_mdl_path ${pretrain_path} \
+#--dataset_mean ${dataset_mean} --dataset_std ${dataset_std} --target_length ${target_length} \
+#--num_mel_bins 128 --head_lr ${head_lr} --noise ${noise} \
+#--lrscheduler_start 6 --lrscheduler_step 1 --lrscheduler_decay 0.85 --wa False --loss CE --metrics mAP
 
 # naive method
 base_exp_dir=./exp/test01-${dataset}-f${fstride}-${fshape}-t${tstride}-${tshape}-b${batch_size}-lr${lr}-${task}-${model_size}-${pretrain_exp}-${pretrain_model}-${head_lr}x-noise${noise}-naive
