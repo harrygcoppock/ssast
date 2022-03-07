@@ -309,7 +309,11 @@ def validate(audio_model, val_loader, args, epoch):
 
             # compute output
             audio_output = audio_model(audio_input, args.task)
-            audio_output = torch.sigmoid(audio_output)
+            audio_output_for_loss = audio_output
+            if isinstance(args.loss_fn, torch.nn.CrossEntropyLoss):
+                audio_output = torch.nn.functional.softmax(audio_output)
+            else:
+                audio_output = torch.sigmoid(audio_output)
             predictions = audio_output.to('cpu').detach()
 
             A_predictions.append(predictions)
