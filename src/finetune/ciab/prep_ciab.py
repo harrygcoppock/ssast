@@ -8,7 +8,7 @@ import json
 import os
 import zipfile
 import wget
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 
 import pandas as pd
 import subprocess, glob, csv
@@ -36,7 +36,8 @@ class PrepCIAB():
             'audio_bucket': 'ciab-879281191186-prod-s3-pii-ciab-approved',
             'splits': 'train-test-split/train_test_split_final_audiosentence_v6_final.pkl',
             'matched': 'audio_sentences_for_matching/test_set_matched_audio_sentences_v6_final.csv',
-            'matched_train': 'audio_sentences_for_matching/train_set_matched_audio_sentences_v6_final.csv'
+            'matched_train': 'audio_sentences_for_matching/train_set_matched_audio_sentences_v6_final.csv',
+            'longitudinal': 'train-test-split/LongitudinalTestSet.csv'
             }
     RANDOM_SEED = 42
 
@@ -100,7 +101,10 @@ class PrepCIAB():
                             pre_june_meta_data,
                             post_june_meta_data
                             ])
-        long_test = self.create_long_test(meta_data, train_test)
+        long_test = pd.read_csv(self.get_file(
+                                    self.PATHS['longitudinal'],
+                                    self.bucket_meta))
+
         matched_test = pd.read_csv(self.get_file(
                                     self.PATHS['matched'],
                                     self.bucket_meta),
@@ -110,14 +114,14 @@ class PrepCIAB():
                                     self.bucket_meta),
                                     names=['id'])
 
-        return meta_data, train_test['train'], train_test['test'], long_test.tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
+        return meta_data, train_test['train'], train_test['test'], long_test['audio_sentence'].tolist(), matched_test['id'].tolist(), matched_train['id'].tolist()
 
 
     def iterate_through_files(self, dataset, split='train'):
         if not os.path.exists(f'{self.output_base}/audio_16k/{split}'):
             os.makedirs(f'{self.output_base}/audio_16k/{split}')
         self.error_list = []
-        self.tot_removed = 0
+        self.tot_removed = [] 
         bootstrap_results = Parallel(n_jobs=-1, verbose=10, prefer='threads')(delayed(self.process_file)(barcode_id, split) for barcode_id in dataset)
         
         print(f'Average fraction removed: {np.mean(self.tot_removed)}')
@@ -132,35 +136,29 @@ class PrepCIAB():
         try:
             filename = self.get_file(df_match[self.modality].iloc[0], self.bucket_audio)
         except:
-            print(f"{df_match[self.modality].iloc[0]} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
+            print(f"{df_match[self.modality].iloc[0]} not possible to load. From {df_match['processed_date']} Total so far: {len(self.error_list)}")
             self.error_list.append(df_match[self.modality].iloc[0])
             return 1
         label = df_match['test_result'].iloc[0]
         try:
             signal, sr = librosa.load(filename, sr=16000)
-        except RuntimeError:
-            print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(error_list)}")
+        except:
+            print(f"{filename} not possible to load. From {df_match['processed_date']} Total so far: {len(self.error_list)}")
             self.error_list.append(filename)
             return 1
         clipped_signal, frac_removed = self.remove_silence(signal, barcode_id)
-        self.tot_removed += frac_removed
+        self.tot_removed.append(frac_removed)
         sf.write(f'{self.output_base}/audio_16k/{split}/{barcode_id}', clipped_signal, 16000)
         return 1
-        
-
-
-    def create_long_test(self, meta, train_test):
-        '''
-        Currently we are using any data collected after Novemenber 29th as a third test set.
-        The collected barcodes are have not be listed however, can be determined by what barcodes are NOT in the train or test splits
-        '''
-        long_test = meta[meta['submission_time'] > '2021-11-29']
-        long_test = long_test[long_test['test_result'] != 'Unknown/Void']
-        long_test = long_test['audio_sentence']
-        return long_test
 
     def print_stats(self):
-        print(f'Sample numbers: Train: {len(self.train)}, Test: {len(self.test)}, Long_test: {len(self.long_test)} matched_test: {len(self.matched_test)}')
+        print(f'Sample numbers: Train: {len(self.train)}, \
+                Test: {len(self.test)}, \
+                Long_test: {len(self.long_test)} \
+                matched_test: {len(self.matched_test)} \
+                naive train: {len(self.naive_train)} \
+                naive validation: {len(self.naive_val)} \
+                naive test: {len(self.naive_test)}')
     
     def create_folds(self):
         kfold = KFold(n_splits=5, shuffle=True, random_state=self.RANDOM_SEED)
@@ -168,22 +166,48 @@ class PrepCIAB():
                  for (train, test) in kfold.split(self.train)]
 
     def create_json(self):
-        for fold in tqdm([1,2,3,4,5]):
-            train_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
-            validation_list = [instance for instance in self.train if instance in self.folds[fold-1]]
-            assert not any(x in validation_list for x in train_list), 'there is cross over between train and validation'
-            with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.list_to_dict(train_list, 'train')}, f, indent=1)
+        #for fold in tqdm([1,2,3,4,5]):# for compute reasons have a fixed validation set when evaluating on test sets
+        fold = 1
+        train_list = [instance for instance in self.train if instance not in self.folds[fold-1]]
+        validation_list = [instance for instance in self.train if instance in self.folds[fold-1]]
+        assert not any(x in validation_list for x in train_list), 'there is cross over between train and validation'
+        dic_train_list = self.list_to_dict(train_list, 'train')
+        dic_validation_list = self.list_to_dict(validation_list, 'train')
+        dic_test_list = self.list_to_dict(self.test, 'test')
+        dic_matched_test_list = self.list_to_dict(self.matched_test, 'matched_test')
+        dic_matched_train_list = self.list_to_dict(self.matched_train, 'matched_train')
+        dic_long_test_list = self.list_to_dict(self.long_test, 'long_test')
+        with open('./data/datafiles/ciab_train_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_train_list}, f, indent=1)
+        with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_validation_list}, f, indent=1)
+        with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_test_list}, f, indent=1)
+        with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_matched_test_list}, f, indent=1)
+        with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': dic_long_test_list}, f, indent=1)
+        #create naive training evaluation sets. Note: this is for an ablation study to show the inflated performance
+        all_data = dic_train_list + dic_validation_list + dic_test_list + dic_long_test_list # matched test and matched train are subsets of test and train respectively
+        self.naive_train, self.naive_val, self.naive_test = self.create_naive_splits(all_data)
 
-            with open('./data/datafiles/ciab_validation_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.list_to_dict(validation_list, 'train')}, f, indent=1)
-            with open('./data/datafiles/ciab_standard_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.list_to_dict(self.test, 'test')}, f, indent=1)
-            with open('./data/datafiles/ciab_matched_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.list_to_dict(self.matched_test, 'matched_test')}, f, indent=1)
-            with open('./data/datafiles/ciab_long_test_data_'+ str(fold) +'.json', 'w') as f:
-                json.dump({'data': self.list_to_dict(self.long_test, 'long_test')}, f, indent=1)
+        assert not any(x in self.back_to_list(self.naive_val) for x in self.naive_train), 'there is cross over between naive train and naive validation'
+        assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_train), 'there is cross over between naive train and naive test'
+        assert not any(x in self.back_to_list(self.naive_test) for x in self.naive_val), 'there is cross over between naive test and naive validation'
+        with open('./data/datafiles/naive_train_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.naive_train}, f, indent=1)
+        with open('./data/datafiles/naive_validation_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.naive_val}, f, indent=1)
+        with open('./data/datafiles/naive_test_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.naive_test}, f, indent=1)
+        # Here we create an additional training set where we add the longitudinal data to the train
+        big_train = dic_train_list + dic_validation_list + dic_long_test_list 
+        self.big_train, self.big_val = self.create_naive_splits(big_train, just_val=True) 
 
+        with open('./data/datafiles/big_train_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_train}, f, indent=1)
+        with open('./data/datafiles/big_validation_'+ str(fold) +'.json', 'w') as f:
+            json.dump({'data': self.big_val}, f, indent=1)
     def list_to_dict(self, data, split):
         '''
         THe ssast library requires a json file in the following format
@@ -226,7 +250,7 @@ class PrepCIAB():
         #if random_number[0] < 0.1:
             #self.plot_b_a(signal, np.array(clipped_signal), filename)
 
-        return np.array(clipped_signal), (length_prior - length_post)/length_prior
+        return np.array(clipped_signal), (length_prior - length_post)/(length_prior + 0.0000000000001)
 
     def plot_b_a(self, before, after, filename):
         '''
@@ -238,42 +262,31 @@ class PrepCIAB():
         ax[0].set(title='HOw much we remove')
         plt.savefig(f'figs/{filename}.png')
         plt.close()
+
+    def create_naive_splits(self, data, just_val=False):
+        '''
+        given a list of ids of all the available data randomly create train/val/splits
+        '''
+        train_X, dev_test_X = train_test_split(
+                    data,
+                    test_size=0.3 if not just_val else 0.2,
+                    random_state=self.RANDOM_SEED)
+        if just_val:
+            return train_X, dev_test_X
+        devel_X, test_X = train_test_split(
+                    dev_test_X,
+                    test_size=0.5,
+                    random_state=self.RANDOM_SEED)
+
+        return train_X, devel_X, test_X
+
+    def back_to_list(self, list_dic):
+        '''
+        for some tests it required to convert back from a list of dicts to simly as list
+        '''
+        return [x['wav'] for x in list_dic]
+
 if __name__ == '__main__':
-    ciab = PrepCIAB()
-    ciab.print_stats()
+    ciab = PrepCIAB('audio_sentence_url')
     ciab.main()
-#label_set = np.loadtxt('./data/esc_class_labels_indices.csv', delimiter=',', dtype='str')
-#label_map = {}
-#for i in range(1, len(label_set)):
-#    label_map[eval(label_set[i][2])] = label_set[i][0]
-#print(label_map)
-#
-## fix bug: generate an empty directory to save json files
-#if os.path.exists('./data/datafiles') == False:
-#    os.mkdir('./data/datafiles')
-#
-#for fold in [1,2,3,4,5]:
-#    base_path = os.path.abspath(os.getcwd()) + "/data/ESC-50-master/audio_16k/"
-#    meta = np.loadtxt('./data/ESC-50-master/meta/esc50.csv', delimiter=',', dtype='str', skiprows=1)
-#    train_wav_list = []
-#    eval_wav_list = []
-#    for i in range(0, len(meta)):
-#        cur_label = label_map[meta[i][3]]
-#        cur_path = meta[i][0]
-#        cur_fold = int(meta[i][1])
-#        # /m/07rwj is just a dummy prefix
-#        cur_dict = {"wav": base_path + cur_path, "labels": '/m/07rwj'+cur_label.zfill(2)}
-#        if cur_fold == fold:
-#            eval_wav_list.append(cur_dict)
-#        else:
-#            train_wav_list.append(cur_dict)
-#
-#    print('fold {:d}: {:d} training samples, {:d} test samples'.format(fold, len(train_wav_list), len(eval_wav_list)))
-#
-#    with open('./data/datafiles/esc_train_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': train_wav_list}, f, indent=1)
-#
-#    with open('./data/datafiles/esc_eval_data_'+ str(fold) +'.json', 'w') as f:
-#        json.dump({'data': eval_wav_list}, f, indent=1)
-#
-#print('Finished ESC-50 Preparation')
+    ciab.print_stats()
